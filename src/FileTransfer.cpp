@@ -79,15 +79,15 @@ bool FileTransfer::setupListenSocket(int& port) {
 	return true;
 }
 
-std::string FileTransfer::generateDccSendMessage(int port) {
+std::string FileTransfer::generateDccSendMessage(int port, const std::string& senderPrefix) {
 	if (!_file.is_open())
 		return "";
 
 	std::string ip = _getLocalIP();
 	unsigned long ip_long = _ipToLong(ip);
-
 	std::ostringstream oss;
-	oss << "PRIVMSG " << _receiver_nick
+	oss << ":" << senderPrefix
+		<< "PRIVMSG " << _receiver_nick
 		<< " :\001DCC SEND " << _filename << ""
 		<< ip_long << " " << port << " "
 		<< _filesize << "\001\r\n";
@@ -155,12 +155,16 @@ bool FileTransfer::isComplete() const {
 bool FileTransfer::isActive() const {
 	return _active;
 	}
+	
+unsigned long FileTransfer::getFilesize() const {
+	return _filesize;
+	}
 
 unsigned long FileTransfer::getProgress() const {
 	if (_filesize == 0) {
 		return 0;
 	}
-	return (_bytes_sent * 100) / _filesize;
+	return static_cast<unsigned long>((static_cast<unsigned long long>(_bytes_sent) * 100ULL) / _filesize);
 }
 
 void FileTransfer::abort() {

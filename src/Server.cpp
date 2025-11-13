@@ -961,10 +961,10 @@ void Server::_handleDccSend(int client_fd, const std::vector<std::string>& param
 	}
 
 	//Generate DCC message
-	std::string dcc_msg = transfer->generateDccSendMessage(port);
+	std::string dccmsg = transfer->generateDccSendMessage(port, _getClientPrefix(client_fd));
 
 	//Enviar ao destinatarios via PRIVMSG
-	_sendToClient(target_fd, dcc_msg);
+	_sendToClient(target_fd, dccmsg);
 
 	//Store active transfers
 	_active_transfers[filename] = transfer;

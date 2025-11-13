@@ -36,13 +36,14 @@ public:
 
 	//Public methods
 	bool setupListenSocket(int& port);
-	std::string generateDccSendMessage(int port);
+	std::string FileTransfer::generateDccSendMessage(int port, const std::string& senderPrefix);
 	bool acceptConnection();
 	bool sendFileData();
 
 	//Status
 	bool isComplete() const;
 	bool isActive() const;
+	unsigned long getFilesize() const;
 	unsigned long getProgress() const;
 
 	//Cleanup
