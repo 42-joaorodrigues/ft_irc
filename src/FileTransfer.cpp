@@ -88,7 +88,7 @@ std::string FileTransfer::generateDccSendMessage(int port, const std::string& se
 	std::ostringstream oss;
 	oss << ":" << senderPrefix
 		<< "PRIVMSG " << _receiver_nick
-		<< " :\001DCC SEND " << _filename << ""
+		<< " :\001DCC SEND " << _filename << " "
 		<< ip_long << " " << port << " "
 		<< _filesize << "\001\r\n";
 
