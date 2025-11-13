@@ -48,6 +48,19 @@ void Bot::_sendMessage(const std::string& message) {
 }
 
 std::string Bot::_readMessage() {
+	// First, check if there's already a complete message in the buffer
+	size_t pos = _buffer.find("\n");
+	if (pos != std::string::npos) {
+		std::string message = _buffer.substr(0, pos);
+		_buffer = _buffer.substr(pos + 1);
+		// Remove trailing \r if present
+		if (!message.empty() && message[message.length() - 1] == '\r') {
+			message = message.substr(0, message.length() - 1);
+		}
+		return message;
+	}
+
+	// No complete message in buffer, read more data from socket
 	char buffer[512];
 	int n = recv(_sockfd, buffer, sizeof(buffer) - 1, 0);
 
@@ -55,15 +68,17 @@ std::string Bot::_readMessage() {
 		return "";
 
 	buffer[n] = '\0';
-	// return std::string(buffer);
-
 	_buffer += std::string(buffer, n);
 
-	//Extract complete message (ending with \r\n)
-	size_t pos = _buffer.find("\r\n");
+	// Try to extract a complete message again
+	pos = _buffer.find("\n");
 	if (pos != std::string::npos) {
-		std::string message = _buffer.substr(0, pos + 2);
-		_buffer = _buffer.substr(pos + 2);
+		std::string message = _buffer.substr(0, pos);
+		_buffer = _buffer.substr(pos + 1);
+		// Remove trailing \r if present
+		if (!message.empty() && message[message.length() - 1] == '\r') {
+			message = message.substr(0, message.length() - 1);
+		}
 		return message;
 	}
 
@@ -92,32 +107,50 @@ void Bot::_handlePing(const std::string& message) {
 
 void Bot::_handlePrivmsg(const std::string& message) {
 	//Example: :sender!user@host PRIVMSG channel :message text
+	std::cout << 1;
 	size_t senderEnd = message.find('!');
-	if (senderEnd == std::string::npos || senderEnd == 0) return;
+	if (senderEnd == std::string::npos || senderEnd == 0)
+		return;
+	std::cout << 2;
 
 	std::string sender = message.substr(1, senderEnd - 1);
 
 	size_t privmsgPos = message.find("PRIVMSG");
-	if (privmsgPos == std::string::npos) return;
+	if (privmsgPos == std::string::npos)
+		return;
+	std::cout << 3;
 
 	size_t channelStart = privmsgPos + 8;
-	if (channelStart >= message.length()) return;
+	if (channelStart >= message.length())
+		return;
+	std::cout << 4;
+
 
 	size_t channelEnd = message.find(' ', channelStart);
-	if (channelEnd == std::string::npos) return;
+	if (channelEnd == std::string::npos)
+		return;
 
+	std::cout << 5;
 	std::string channel = message.substr(channelStart, channelEnd - channelStart);
 
 	size_t textStart = message.find(':', channelEnd);
-	if (textStart == std::string::npos) return;
+	if (textStart == std::string::npos)
+		return;
 
+	std::cout << 6;
 	std::string text = message.substr(textStart + 1);
 
-	// Remove trailing newline
-	if (!text.empty() && text[text.length() - 1] == '\n') {
+	std::cout << "textStart: " << text << std::endl;
+
+	// Remove trailing whitespace characters (\r, \n, spaces, etc.)
+	while (!text.empty() && (text[text.length() - 1] == '\r' || 
+							  text[text.length() - 1] == '\n' ||
+							  text[text.length() - 1] == ' ' ||
+							  text[text.length() - 1] == '\t')) {
 		text = text.substr(0, text.length() - 1);
 	}
-		_parseAndRespond(channel, sender, text);
+	
+	_parseAndRespond(channel, sender, text);
 }
 
 void Bot::_parseAndRespond(const std::string& channel,
@@ -128,15 +161,21 @@ void Bot::_parseAndRespond(const std::string& channel,
 
 	std::string cmd = text.substr(1);
 
+	// Determine where to send the response
+	// If it's a direct message (channel is bot's nick), respond to the sender
+	// Otherwise, respond to the channel
+	std::string target = (channel == _nick) ? sender : channel;
+
+	std::cout << "CMD being received: " << cmd << std::endl;
 	//Handle different commands
 	if (cmd == "hello") {
-		std::string response = "PRIVMSG " + channel + " :Hello " + sender + "!\r\n";
+		std::string response = "PRIVMSG " + target + " :Hello " + sender + "!\r\n";
 		_sendMessage(response);
 	} else if (cmd == "help") {
-		std::string response = "PRIVMSG " + channel + " :Available commands: !hello, !help, !uptime\r\n";
+		std::string response = "PRIVMSG " + target + " :Available commands: !hello, !help, !uptime\r\n";
 		_sendMessage(response);
 	} else if (cmd == "uptime") {
-		std::string response = "PRIVMSG " + channel + " :Bot is running!\r\n";
+		std::string response = "PRIVMSG " + target + " :Bot is running!\r\n";
 		_sendMessage(response);
 	}
 }
@@ -170,6 +209,7 @@ void Bot::messageLoop() {
 	std::cout << "Bot message loop started" << std::endl;
 	while (true) {
 		std::string message = _readMessage();
+
 		if (message.empty()) {
 			//Check if connection is still alive
 			char buffer[1];
@@ -180,8 +220,6 @@ void Bot::messageLoop() {
 			}
 			continue;
 		}
-
-		std::cout << "Received: " << message;
 
 		if (message.find("PING") != std::string::npos) {
 			_handlePing(message);
