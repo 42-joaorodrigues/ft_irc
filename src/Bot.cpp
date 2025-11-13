@@ -57,6 +57,16 @@ std::string Bot::_readMessage() {
 
 	buffer[n] = '\0';
 	return std::string(buffer);
+
+	//Extract complete message (ending with \r\n)
+	size_t pos = _buffer.find("\r\n");
+	if (pos != std::string::npos) {
+		std::string message = _buffer.substr(0, pos + 2);
+		_buffer = _buffer.substr(pos + 2);
+		return message;
+	}
+
+	return ""; //No complete message yet
 }
 
 std::vector<std::string> Bot::_split(const std::string& str, char delimiter) {
@@ -73,17 +83,16 @@ std::vector<std::string> Bot::_split(const std::string& str, char delimiter) {
 void Bot::_handlePing(const std::string& message) {
 	size_t pos = message.find("PING");
 	if (pos != std::string::npos) {
-		std::string response = "PONG" + message.substr(pos + 4);
+		std::string response = "PONG " + message.substr(pos + 4);
 		_sendMessage(response);
 		std::cout << "Respond to PING" << std::endl;
 	}
 }
 
 void Bot::_handlePrivmsg(const std::string& message) {
-	//Example PRIVMSG format:
-	//:sender!user@host PRIVMSG channel :message text
+	//Example: :sender!user@host PRIVMSG channel :message text
 	size_t senderEnd = message.find('!');
-	if (senderEnd == std::string::npos) return;
+	if (senderEnd == std::string::npos || senderEnd == 0) return;
 
 	std::string sender = message.substr(1, senderEnd - 1);
 
@@ -91,13 +100,18 @@ void Bot::_handlePrivmsg(const std::string& message) {
 	if (privmsgPos == std::string::npos) return;
 
 	size_t channelStart = privmsgPos + 8;
+	if (channelStart >= message.length()) return;
+
 	size_t channelEnd = message.find(' ', channelStart);
+	if (channelEnd == std::string::npos) return;
+
 	std::string channel = message.substr(channelStart, channelEnd - channelStart);
 
 	size_t textStart = message.find(':', channelEnd);
 	if (textStart == std::string::npos) return;
 
 	std::string text = message.substr(textStart + 1);
+	
 	// Remove trailing newline
 	if (!text.empty() && text[text.length() - 1] == '\n') 
 		text = text.substr(0, text.length() - 1);
@@ -115,18 +129,18 @@ void Bot::_parseAndRespond(const std::string& channel,
 
 	//Handle different commands
 	if (cmd == "hello") {
-		std::string response = "PRIVMSG" + channel + " :Hello " + sender + "!\r\n";
+		std::string response = "PRIVMSG " + channel + " :Hello " + sender + "!\r\n";
 		_sendMessage(response);
 	} else if (cmd == "help") {
-		std::string response = "PRIVMSG" + channel + " :Available commands: !hello, !help, !uptime\r\n";
+		std::string response = "PRIVMSG " + channel + " :Available commands: !hello, !help, !uptime\r\n";
 		_sendMessage(response);
 	} else if (cmd == "uptime") {
-		std::string response = "PRIVMSG" + channel + " :Bot is running!\r\n";
+		std::string response = "PRIVMSG " + channel + " :Bot is running!\r\n";
 		_sendMessage(response);
 	}
 }
 
-bool Bot::connect() { return _connectSocket; }
+bool Bot::connect() { return _connectSocket(); }
 
 void Bot::authenticate() {
 	//Send password if required
@@ -155,8 +169,16 @@ void Bot::messageLoop() {
 	std::cout << "Bot message loop started" << std::endl;
 	while (true) {
 		std::string message = _readMessage();
-
-		if (message.empty()) continue;
+		if (message.empty()) {
+			//Check if connection is still alive
+			char buffer[1];
+			int n = recv(_sockfd, buffer, 1, MSG_PEEK | MSG_DONTWAIT);
+			if (n == 0) {
+				std::cerr << "Connection closed by server" << std::endl;
+				break;
+			}
+			continue;
+		}
 
 		std::cout << "Received: " << message;
 
