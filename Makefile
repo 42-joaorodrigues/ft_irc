@@ -1,15 +1,15 @@
 NAME		= ircserv
-BONUS_NAME	= ircbot
+BOT			= ircbot
 CC			= c++
 FLAGS		= -Werror -Wextra -Wall -std=c++98
 RM			= rm -rf
 
 # Server files
-SRC			= src/main.cpp src/Server.cpp src/Client.cpp src/Channel.cpp
+SRC			= src/main.cpp src/Server.cpp src/Client.cpp src/Channel.cpp src/FileTransfer.cpp
 OBJ			= $(SRC:%.cpp=obj/%.o)
 
 # Bot files
-BONUS_SRC	= src/Bot.cpp src/botMain.cpp
+BONUS_SRC	= src/Bot.cpp src/main_bonus.cpp
 BONUS_OBJ	= $(BONUS_SRC:%.cpp=obj/%.o)
 
 all: $(NAME)
@@ -21,16 +21,16 @@ obj/%.o : %.cpp
 $(NAME): $(OBJ)
 	$(CC) $(FLAGS) $(OBJ) -o $@
 
-bonus: $(BONUS_NAME)
+bonus: all $(BOT)
 
-$(BONUS_NAME): $(BONUS_OBJ)
+$(BOT): $(BONUS_OBJ)
 	$(CC) $(FLAGS) $(BONUS_OBJ) -o $@
 
 clean:
 	$(RM) obj
 
 fclean: clean
-	$(RM) $(NAME) $(BONUS_NAME)
+	$(RM) $(NAME) $(BOT)
 
 re: fclean all
 

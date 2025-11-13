@@ -11,8 +11,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-class Bot
-{
+class Bot {
 private:
 	int _sockfd;
 	std::string _server;

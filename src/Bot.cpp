@@ -10,8 +10,7 @@ Bot::~Bot() {
 		close(_sockfd);
 }
 
-bool Bot::_connectSocket()
-{
+bool Bot::_connectSocket() {
 	struct sockaddr_in serv_addr;
 
 	_sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -56,7 +55,9 @@ std::string Bot::_readMessage() {
 		return "";
 
 	buffer[n] = '\0';
-	return std::string(buffer);
+	// return std::string(buffer);
+
+	_buffer += std::string(buffer, n);
 
 	//Extract complete message (ending with \r\n)
 	size_t pos = _buffer.find("\r\n");
@@ -111,11 +112,11 @@ void Bot::_handlePrivmsg(const std::string& message) {
 	if (textStart == std::string::npos) return;
 
 	std::string text = message.substr(textStart + 1);
-	
-	// Remove trailing newline
-	if (!text.empty() && text[text.length() - 1] == '\n') 
-		text = text.substr(0, text.length() - 1);
 
+	// Remove trailing newline
+	if (!text.empty() && text[text.length() - 1] == '\n') {
+		text = text.substr(0, text.length() - 1);
+	}
 		_parseAndRespond(channel, sender, text);
 }
 

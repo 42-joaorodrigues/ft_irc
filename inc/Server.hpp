@@ -10,6 +10,7 @@
 
 #include "Client.hpp"
 #include "Channel.hpp"
+#include "FileTransfer.hpp"
 
 class Server {
 	int _port;
@@ -18,6 +19,7 @@ class Server {
 	std::vector<struct pollfd> _poll_fds;
 	std::map<int, Client> _clients; // fd -> Client
 	std::map<std::string, Channel*> _channels; // name -> Channel*
+	std::map<std::string, FileTransfer*> _active_transfers;
 
 public:
 	Server(int port, const std::string& password);
@@ -67,6 +69,11 @@ private:
 	std::string _getClientPrefix(int client_fd) const;
 	Channel* _getChannel(const std::string& name);
 	Channel* _createChannel(const std::string& name);
+
+	// DCC File Transfer
+	void _handleDccSend(int client_fd, const std::vector<std::string>& params);
+	void _processDccTransfers();
+	void _cleanupCompletedTransfers();
 };
 
 #endif // SERVER_HPP

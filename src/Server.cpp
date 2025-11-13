@@ -1,5 +1,6 @@
 #include "Server.hpp"
 #include "IrcReplies.hpp"
+#include "FileTransfer.hpp"
 #include <asm-generic/socket.h>
 #include <cstddef>
 #include <iostream>
@@ -45,6 +46,9 @@ void Server::run() {
 		if (poll_count < 0) {
 			throw std::runtime_error("Poll failed");
 		}
+
+		_processDccTransfers();
+		_cleanupCompletedTransfers();
 
 		for (size_t i = 0; i < _poll_fds.size(); i++) {
 			// Skip if no events on this fd
@@ -289,6 +293,9 @@ void Server::_executeCommand(int client_fd, const std::string& command) {
 	}
 	else if (cmd == CMD_MODE) {
 		_handleMode(client_fd, params);
+	}
+	else if (cmd == "DCC") {
+		_handleDccSend(client_fd, params);
 	}
 	else {
 		_sendToClient(client_fd, ERR_UNKNOWNCOMMAND(cmd));
@@ -558,6 +565,32 @@ void Server::_handlePrivmsg(int client_fd, const std::vector<std::string>& param
 	std::string target = params[0];
 	std::string message = params[1];
 
+	// Detect DCC SEND
+	if (message.find("\001DCC SEND") == 0) {
+		// Client está iniciando file transfer
+		// Apenas encaminhar para o destinatário
+		std::string msg = ":" + _getClientPrefix(client_fd) + " PRIVMSG " + target + " :" + message + "\r\n";
+
+		if (target[0] == '#') {
+			Channel* channel = _getChannel(target);
+			if (!channel) {
+				_sendToClient(client_fd, ERR_NOSUCHCHANNEL(target));
+				return;
+			}
+			if (!channel->isMember(client_fd)) {
+				_sendToClient(client_fd, ERR_CANNOTSENDTOCHAN(target));
+				return;
+			}
+		} else {
+			int target_fd = _getClientFdByNickname(target);
+			if (target_fd == -1) {
+				_sendToClient(client_fd, ERR_NOSUCHNICK(target));
+				return;
+			}
+			_sendToClient(target_fd, msg);
+		}
+		return;
+	}
 	std::string msg = ":" + _getClientPrefix(client_fd) + " PRIVMSG " + target + " :" + message + "\r\n";
 
 	// Check if target is a channel
@@ -893,3 +926,89 @@ Channel* Server::_createChannel(const std::string& name) {
 	return channel;
 }
 
+static std::string intToString(int value) {
+	std::ostringstream oss;
+	oss << value;
+	return oss.str();
+}
+
+void Server::_handleDccSend(int client_fd, const std::vector<std::string>& params) {
+	// DCC SEND <filename> <target_nick>
+	if (params.size() < 3 || params[0] != "SEND") {
+		_sendToClient(client_fd, "ERROR: Invalid DCC SEND syntax\r\n");
+		return;
+	}
+
+	std::string filename = params[1];
+	std::string target_nick = params[2];
+
+	//Verificar se o alvo existe
+	int target_fd = _getClientFdByNickname(target_nick);
+	if (target_fd == -1) {
+		_sendToClient(client_fd, ERR_NOSUCHNICK(target_nick));
+		return;
+	}
+
+	//Criar transferencia
+	std::string sender_nick = _clients[client_fd].getNickname();
+	FileTransfer* transfer = new FileTransfer(filename, sender_nick, target_nick);
+
+	int port = 0;
+	if (!transfer->setupListenSocket(port)) {
+		_sendToClient(client_fd, "ERROR: Failed to setup file transfer\r\n");
+		delete transfer;
+		return;
+	}
+
+	//Generate DCC message
+	std::string dcc_msg = transfer->generateDccSendMessage(port);
+
+	//Enviar ao destinatarios via PRIVMSG
+	_sendToClient(target_fd, dcc_msg);
+
+	//Store active transfers
+	_active_transfers[filename] = transfer;
+
+	//Confirmar ao remetente
+	std::string confirm = ":server NOTICE " + sender_nick + 
+							" :DCC SEND initiated for " + filename +
+							" on port " + intToString(port) + "\r\n";
+	_sendToClient(client_fd, confirm);
+	
+}
+
+void Server::_processDccTransfers() {
+	std::map<std::string, FileTransfer*>::iterator it;
+	for (it = _active_transfers.begin(); it != _active_transfers.end(); ++it) {
+		FileTransfer* transfer = it->second;
+
+		if (!transfer->isActive()) {
+			continue;
+		}
+
+		// Try to accept connection
+		if (transfer->acceptConnection()) {
+			std::cout << "DCC connection accepted for " << it->first << std::endl;
+		}
+
+		//If conncted, send data
+		if (transfer->sendFileData()) {
+			std::cout << "Progress" << transfer->getProgress() << "%" << std::endl;
+		}
+	}
+}
+
+void Server::_cleanupCompletedTransfers() {
+	std::map<std::string, FileTransfer*>::iterator it = _active_transfers.begin();
+	while (it != _active_transfers.end()) {
+		if (it->second->isComplete()) {
+			std::cout << "Transfer completed: " << it->first << std::endl;
+			delete it->second;
+			std::map<std::string, FileTransfer*>::iterator tmp = it;
+			++it;
+			_active_transfers.erase(tmp);
+		} else {
+			++it;
+		}
+	}
+}
