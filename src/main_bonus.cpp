@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
 	std::cout << "Server: " << server << ":" << port << std::endl;
 	std::cout << "Channel: " << channel << std::endl;
 	std::cout << "Bot nick: escraBOTceta" << std::endl;
-	std::cout << "===============" << std::endl;
+	std::cout << "===============\n" << std::endl;
 
 	//Setup signal handler
 	struct sigaction sa;
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
 	//Connect to server
 	std::cout << "Connecting to IRC server..." << std::endl;
 	if (!bot.connect()) {
-		std::cerr << "Error: Faild to connect to server" << std::endl;
+		std::cerr << "Error: Failed to connect to server" << std::endl;
 		return 1;
 	}
 
@@ -87,12 +87,13 @@ int main(int argc, char **argv) {
 
 	sleep(1);
 
-	std::cout << "=== escraBOTceta menu ===" << std::endl;
+	std::cout << "\n======= escraBOTceta menu =======\n" << std::endl;
 	std::cout << "  !hello  - Greeting message"<< std::endl;
 	std::cout << "  !help   - Show help information"<< std::endl;
 	std::cout << "  !uptime - Show bot uptime"<< std::endl;
+	std::cout << "  !joke   - Tell a random joke"<< std::endl;
 	std::cout << "\nPress Ctrl+C to stop the bot"<< std::endl;
-	std::cout << "=========================\n" << std::endl;
+	std::cout << "=================================\n" << std::endl;
 
 	//Loop the message above
 	bot.messageLoop();

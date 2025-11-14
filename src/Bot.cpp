@@ -1,5 +1,10 @@
 #include "Bot.hpp"
 
+// static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+// 	((std::string*)userp)->append((char*)contents, size * nmemb);
+// 	return size * nmemb;
+// }
+
 Bot::Bot(const std::string& server, int port,
 				const std::string& nick, const std::string& password)
 	:  _sockfd(-1), _server(server), _port(port),
@@ -177,7 +182,52 @@ void Bot::_parseAndRespond(const std::string& channel,
 	} else if (cmd == "uptime") {
 		std::string response = "PRIVMSG " + target + " :Bot is running!\r\n";
 		_sendMessage(response);
+	} else if (cmd == "joke") {
+		std::string joke = _getJoke();
+		std::string response = "PRIVMSG " + target + " :" + joke + "\r\n";
+		_sendMessage(response);
 	}
+}
+
+std::string Bot::_getJoke() {
+	// Using system curl instead of <curl/curl.h>
+	int result = system("curl -s https://official-joke-api.appspot.com/random_joke > /tmp/ircbot_joke.json 2>/dev/null");
+	if (result != 0) {
+		return "Error: Could not fetch joke";
+	}
+
+	//Read file
+	std::ifstream file("/tmp/ircbot_joke.json");
+	if (!file.is_open()) {
+		return "Error: Could not read joke from file";
+	}
+
+	std::string content;
+	std::string line;
+	while (std::getline(file, line)) {
+		content += line;
+	}
+	file.close();
+
+	// Parse JSON response: {"type":"...","setup":"...","punchline":"...","id":...}
+	size_t setupPos = content.find("\"setup\":\"");
+	size_t punchPos = content.find("\"punchline\":\"");
+
+	if (setupPos != std::string::npos && punchPos != std::string::npos) {
+		// Extract setup
+		size_t setupStart = setupPos + 9; //length of "setup":"
+		size_t setupEnd = content.find("\"", setupStart);
+		std::string setup = content.substr(setupStart, setupEnd - setupStart);
+
+		// Extract punchline
+		size_t punchStart = punchPos + 13; //length of "punchline":"
+		size_t punchEnd = content.find("\"", punchStart);
+		std::string punchline = content.substr(punchStart, punchEnd - punchStart);
+
+		return setup + " ... " + punchline;
+	}
+
+	return "Error: Failed to parse joke";
 }
 
 bool Bot::connect() { return _connectSocket(); }

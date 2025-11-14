@@ -10,6 +10,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <fstream>
+#include <cstdlib>
 
 class Bot {
 private:
@@ -30,6 +32,7 @@ private:
 						const std::string& sender,
 						const std::string& text);
 	std::vector<std::string> _split(const std::string& str, char delimiter);
+	std::string _getJoke();
 
 public:
 	Bot(const std::string& server, int port,

@@ -30,6 +30,32 @@ std::string FileTransfer::_getLocalIP() {
 	return "127.0.0.1";
 }
 
+void FileTransfer::_displayProgressBar(int percentage, const std::string& action) {
+	const char* bars[] = {
+		"⣿⣀⣀⣀⣀⣀⣀⣀⣀⣀",  // 10%
+		"⣿⣿⣀⣀⣀⣀⣀⣀⣀⣀",  // 20%
+		"⣿⣿⣿⣀⣀⣀⣀⣀⣀⣀",  // 30%
+		"⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀",  // 40%
+		"⣿⣿⣿⣿⣿⣀⣀⣀⣀⣀",  // 50%
+		"⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀",  // 60%
+		"⣿⣿⣿⣿⣿⣿⣿⣀⣀⣀",  // 70%
+		"⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀",  // 80%
+		"⣿⣿⣿⣿⣿⣿⣿⣿⣿⣀",  // 90%
+		"⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿"   // 100%
+	};
+
+	int barIndex = (percentage / 10) -1;
+	if (barIndex < 0) barIndex = 0;
+	if (barIndex < 9) barIndex = 9;
+
+	std::cout << "\r"
+				<< std::setw(12) <<std::left << action
+				<< std::setw(20) <<std::left << _filename.substr(0, 20)
+				<< "" << bars[barIndex]
+				<< "" << percentage << "%"
+				<< std::flush;
+}
+
 bool FileTransfer::setupListenSocket(int& port) {
 	_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (_listen_fd < 0) {
@@ -134,6 +160,9 @@ bool FileTransfer::sendFileData() {
 		if (sent > 0) {
 			_bytes_sent += static_cast<unsigned long>(sent);
 
+			// Display progress bar
+			displayTransferProgress();
+
 			//Wait for acknoledgment (required by DCC protocol)
 			unsigned long ack = 0;
 			ssize_t recv_result = recv(_transfer_fd, &ack, sizeof(ack), 0);
@@ -145,7 +174,25 @@ bool FileTransfer::sendFileData() {
 		return false;
 	}
 	//No more data read
+	if (_file.eof()) {
+		displayTransferProgress();
+		std::cout << std::endl;
+	}
 	return false;
+}
+
+void FileTransfer::displayTransferProgress() {
+	if (_filesize == 0) return;
+
+	int percentage = (int)(((double)_bytes_sent / (double)_filesize) * 100);
+
+	if (percentage % 10 == 0 || percentage == 100) {
+		_displayProgressBar(percentage, "Sending");
+	}
+
+	if (percentage >= 100) {
+		std::cout << std::endl;
+	}
 }
 
 bool FileTransfer::isComplete() const {
@@ -165,6 +212,10 @@ unsigned long FileTransfer::getProgress() const {
 		return 0;
 	}
 	return static_cast<unsigned long>((static_cast<unsigned long long>(_bytes_sent) * 100ULL) / _filesize);
+}
+
+unsigned long FileTransfer::getBytesSent() const {
+	return _bytes_sent;
 }
 
 void FileTransfer::abort() {

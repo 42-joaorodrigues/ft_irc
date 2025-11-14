@@ -983,8 +983,17 @@ void Server::_processDccTransfers() {
 		FileTransfer* transfer = it->second;
 
 		if (!transfer->isActive()) {
-			continue;
+			if (!transfer->sendFileData()) {
+				if (transfer->isComplete()) {
+					std::cout << "\n✓ File transfer complete: " << it->first << std::endl;
+				}
+				transfer->abort();
+				delete transfer;
+				_active_transfers.erase(it++);
+				continue;
+			}
 		}
+		++it;
 
 		// Try to accept connection
 		if (transfer->acceptConnection()) {

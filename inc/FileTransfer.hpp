@@ -12,6 +12,7 @@
 #include <sstream>
 #include <iostream>
 #include <cstring>
+#include <iomanip>
 
 class FileTransfer {
 private:
@@ -27,6 +28,7 @@ private:
 
 	std::string _getLocalIP();
 	unsigned long _ipToLong(const std::string& ip);
+	void _displayProgressBar(int percentage, const std::string& action);
 
 public:
 	FileTransfer(const std::string& filename,
@@ -39,12 +41,14 @@ public:
 	std::string generateDccSendMessage(int port, const std::string& senderPrefix);
 	bool acceptConnection();
 	bool sendFileData();
+	void displayTransferProgress();
 
 	//Status
 	bool isComplete() const;
 	bool isActive() const;
 	unsigned long getFilesize() const;
 	unsigned long getProgress() const;
+	unsigned long getBytesSent() const;
 
 	//Cleanup
 	void abort();
