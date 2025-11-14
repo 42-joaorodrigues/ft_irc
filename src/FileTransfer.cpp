@@ -44,9 +44,24 @@ void FileTransfer::_displayProgressBar(int percentage, const std::string& action
 		"⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿"   // 100%
 	};
 
-	int barIndex = (percentage / 10) -1;
+	int barIndex = percentage / 10;
 	if (barIndex < 0) barIndex = 0;
 	if (barIndex < 9) barIndex = 9;
+
+	std::string filename = _filename;
+	if (!filename.empty()) {
+		size_t lastSlash = filename.find_last_of("/\\");
+		if (lastSlash != std::string::npos && lastSlash +1 < filename.length()) {
+			filename = filename.substr(lastSlash + 1);
+		}
+	}
+
+	// Truncate if too long
+	if (filename.length() > 20) {
+		filename = filename.substr(0, 17) + "...";
+	}
+
+	if (filename.empty()) filename = "(file)";
 
 	std::cout << "\r"
 				<< std::setw(12) <<std::left << action
@@ -184,11 +199,13 @@ bool FileTransfer::sendFileData() {
 void FileTransfer::displayTransferProgress() {
 	if (_filesize == 0) return;
 
-	int percentage = (int)(((double)_bytes_sent / (double)_filesize) * 100);
+	double ratio = (double)_bytes_sent / (double)_filesize;
+	int percentage = static_cast<int>(ratio * 100);
 
-	if (percentage % 10 == 0 || percentage == 100) {
-		_displayProgressBar(percentage, "Sending");
-	}
+	if (percentage < 0) percentage = 0;
+	if (percentage > 100) percentage = 100;
+	
+	_displayProgressBar(percentage, "Sending");
 
 	if (percentage >= 100) {
 		std::cout << std::endl;
