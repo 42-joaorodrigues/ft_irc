@@ -5,7 +5,7 @@ FLAGS	= -Werror -Wextra -Wall -std=c++98
 RM		= rm -rf
 
 SRC		= src/main.cpp src/Server.cpp src/Client.cpp src/Channel.cpp src/FileTransfer.cpp
-SRC_BOT		= src/Bot.cpp src/main_bonus.cpp
+SRC_BOT	= src/Bot.cpp src/main_bonus.cpp
 OBJ		= $(SRC:%.cpp=obj/%.o)
 BOT_OBJ	= $(SRC_BOT:%.cpp=obj/%.o)
 
@@ -18,7 +18,7 @@ obj/%.o : %.cpp
 $(NAME): $(OBJ)
 	$(CC) $(FLAGS) $(OBJ) -o $(NAME)
 
-bonus: $(SRC_BOT)
+bonus: $(BOT)
 
 $(BOT): $(BOT_OBJ)
 	$(CC) $(FLAGS) $(BOT_OBJ) -o $(BOT)
