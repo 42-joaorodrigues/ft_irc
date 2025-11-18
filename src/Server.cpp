@@ -567,8 +567,8 @@ void Server::_handlePrivmsg(int client_fd, const std::vector<std::string>& param
 
 	// Detect DCC SEND
 	if (message.find("\001DCC SEND") == 0) {
-		// Client está iniciando file transfer
-		// Apenas encaminhar para o destinatário
+		// Client is initiating a file transfer
+		// Just forward it to the recipient
 		std::string msg = ":" + _getClientPrefix(client_fd) + " PRIVMSG " + target + " :" + message + "\r\n";
 
 		if (target[0] == '#') {
@@ -942,14 +942,14 @@ void Server::_handleDccSend(int client_fd, const std::vector<std::string>& param
 	std::string filename = params[1];
 	std::string target_nick = params[2];
 
-	//Verificar se o alvo existe
+	// Check if the target exists
 	int target_fd = _getClientFdByNickname(target_nick);
 	if (target_fd == -1) {
 		_sendToClient(client_fd, ERR_NOSUCHNICK(target_nick));
 		return;
 	}
 
-	//Criar transferencia
+	// Create transfer
 	std::string sender_nick = _clients[client_fd].getNickname();
 	FileTransfer* transfer = new FileTransfer(filename, sender_nick, target_nick);
 
@@ -960,16 +960,16 @@ void Server::_handleDccSend(int client_fd, const std::vector<std::string>& param
 		return;
 	}
 
-	//Generate DCC message
+	// Generate DCC message
 	std::string dccmsg = transfer->generateDccSendMessage(port, _getClientPrefix(client_fd));
 
-	//Enviar ao destinatarios via PRIVMSG
+	// Send to recipient via PRIVMSG
 	_sendToClient(target_fd, dccmsg);
 
 	//Store active transfers
 	_active_transfers[filename] = transfer;
 
-	//Confirmar ao remetente
+	// Confirm to sender
 	std::string confirm = ":server NOTICE " + sender_nick + 
 							" :DCC SEND initiated for " + filename +
 							" on port " + intToString(port) + "\r\n";

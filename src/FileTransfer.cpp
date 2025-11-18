@@ -46,7 +46,7 @@ void FileTransfer::_displayProgressBar(int percentage, const std::string& action
 
 	int barIndex = percentage / 10;
 	if (barIndex < 0) barIndex = 0;
-	if (barIndex < 9) barIndex = 9;
+	if (barIndex > 9) barIndex = 9;
 
 	std::string filename = _filename;
 	if (!filename.empty()) {
@@ -128,7 +128,7 @@ std::string FileTransfer::generateDccSendMessage(int port, const std::string& se
 	unsigned long ip_long = _ipToLong(ip);
 	std::ostringstream oss;
 	oss << ":" << senderPrefix
-		<< "PRIVMSG " << _receiver_nick
+		<< " PRIVMSG " << _receiver_nick
 		<< " :\001DCC SEND " << _filename << " "
 		<< ip_long << " " << port << " "
 		<< _filesize << "\001\r\n";
