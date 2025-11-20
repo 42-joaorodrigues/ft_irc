@@ -42,7 +42,7 @@ void Server::run() {
 	std::cout << "Server running on port " << _port << ". Waiting for connections..." << std::endl;
 
 	while (true) { // Main loop
-		int poll_count = _poll_fds.data(), _poll_fds.size(), -1);
+		int poll_count = poll(_poll_fds.data(), _poll_fds.size(), -1);
 		if (poll_count < 0) {
 			throw std::runtime_error("Poll failed");
 		}
@@ -51,7 +51,7 @@ void Server::run() {
 		_cleanupCompletedTransfers();
 
 		for (size_t i = 0; i < _poll_fds.size(); i++) {
-			// Skip if no events on this fd
+			// Skip if no events on this fddev
 			if (_poll_fds[i].revents == 0) {
 				continue;
 			}

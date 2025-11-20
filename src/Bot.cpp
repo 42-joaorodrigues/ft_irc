@@ -170,7 +170,7 @@ void Bot::_parseAndRespond(const std::string& channel,
 		std::string response = "PRIVMSG " + target + " :Hello " + sender + "!\r\n";
 		_sendMessage(response);
 	} else if (cmd == "help") {
-		std::string response = "PRIVMSG " + target + " :Available commands: !hello, !help, !uptime\r\n";
+		std::string response = "PRIVMSG " + target + " :Available commands: \x02!hello, !help, !uptime, !joke\x02\r\n";
 		_sendMessage(response);
 	} else if (cmd == "uptime") {
 		std::string response = "PRIVMSG " + target + " :Bot is running!\r\n";

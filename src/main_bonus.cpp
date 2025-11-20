@@ -87,13 +87,13 @@ int main(int argc, char **argv) {
 
 	sleep(1);
 
-	std::cout << "\n======= escraBOTceta menu =======\n" << std::endl;
-	std::cout << "  !hello  - Greeting message"<< std::endl;
-	std::cout << "  !help   - Show help information"<< std::endl;
-	std::cout << "  !uptime - Show bot uptime"<< std::endl;
-	std::cout << "  !joke   - Tell a random joke"<< std::endl;
-	std::cout << "\nPress Ctrl+C to stop the bot"<< std::endl;
-	std::cout << "=================================\n" << std::endl;
+	std::cout << "\n\x02======= escraBOTceta menu =======\x02\n" << std::endl;
+	std::cout << " \x02 !hello \x02 - Greeting message"<< std::endl;
+	std::cout << " \x02 !help \x02  - Show help information"<< std::endl;
+	std::cout << " \x02 !uptime \x02- Show bot uptime"<< std::endl;
+	std::cout << " \x02 !joke \x02  - Tell a random joke"<< std::endl;
+	std::cout << "\nPress \x02 Ctrl+C \x02 to stop the bot"<< std::endl;
+	std::cout << "\x02=================================\x02\n" << std::endl;
 
 	//Loop the message above
 	bot.messageLoop();
