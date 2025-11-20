@@ -1,10 +1,5 @@
 #include "Bot.hpp"
 
-// static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-// 	((std::string*)userp)->append((char*)contents, size * nmemb);
-// 	return size * nmemb;
-// }
-
 Bot::Bot(const std::string& server, int port,
 				const std::string& nick, const std::string& password)
 	:  _sockfd(-1), _server(server), _port(port),
@@ -16,34 +11,32 @@ Bot::~Bot() {
 }
 
 bool Bot::_connectSocket() {
-	struct sockaddr_in serv_addr;
+    struct sockaddr_in serv_addr;
 
-	_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (_sockfd < 0)
-	{
-		std::cerr << "Error: cannot create socket" << std::endl;
-		return false;
-	}
+    _sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (_sockfd < 0) {
+        std::cerr << "Error: cannot create socket" << std::endl;
+        return false;
+    }
 
-	memset(&serv_addr, 0, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_port = htons(_port);
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(_port);
 
-	if (inet_pton(AF_INET, _server.c_str(), &serv_addr.sin_addr) <= 0)
-	{
-		std::cerr << "Error: invalid server address" << std::endl;
-		return false;
-	}
+    struct hostent* host = gethostbyname(_server.c_str());
+    if (!host) {
+        std::cerr << "Error: unknown host" << std::endl;
+        return false;
+    }
+    memcpy(&serv_addr.sin_addr, host->h_addr, host->h_length);
 
-	if (::connect(_sockfd, (struct sockaddr*)&serv_addr,
-				sizeof(serv_addr)) < 0)
-	{
-		std::cerr << "Error: connection failed" << std::endl;
-		return false;
-	}
+    if (::connect(_sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+        std::cerr << "Error: connection failed" << std::endl;
+        return false;
+    }
 
-	std::cout << "Connected to " << _server << ":" << _port << std::endl;
-	return true;
+    std::cout << "Connected to " << _server << ":" << _port << std::endl;
+    return true;
 }
 
 void Bot::_sendMessage(const std::string& message) {
@@ -190,45 +183,90 @@ void Bot::_parseAndRespond(const std::string& channel,
 }
 
 std::string Bot::_getJoke() {
-	// Using system curl instead of <curl/curl.h>
-	int result = system("curl -s https://official-joke-api.appspot.com/random_joke > /tmp/ircbot_joke.json 2>/dev/null");
-	if (result != 0) {
-		return "Error: Could not fetch joke";
+	static const std::string hardcodedJokes[] = {
+		"Why do programmers prefer dark mode?\x02 Because light attracts bugs.\x02",
+		"Why did the programmer quit his job?\x02 Because he didn't get arrays.\x02",
+		"How many programmers does it take to change a light bulb?\x02 None, that's a hardware problem.\x02",
+		"Why do Java developers wear glasses?\x02 Because they don't C#.\x02",
+		"What's a programmer's favorite hangout place?\x02 Foo Bar.\x02",
+		"Why did the developer go broke?\x02 Because he used up all his cache.\x02",
+		"What do you call 8 hobbits?\x02 A hobbyte.\x02",
+		"There are 10 types of people in the world:\x02 those who understand binary and those who don't.\x02",
+		"A SQL query walks into a bar, walks up to two tables and asks:\x02 Can I join you?\x02",
+		"Why was the JavaScript developer sad?\x02 Because he didn't know how to 'null' his feelings.\x02",
+		"I have a joke about UDP,\x02 but you might not get it.\x02",
+		"How do you comfort a JavaScript bug?\x02 You console it.\x02",
+		"Why do programmers always mix up Halloween and Christmas?\x02 Because Oct 31 == Dec 25.\x02",
+		"What's the object-oriented way to become wealthy?\x02 Inheritance.\x02",
+		"Why did the computer keep sneezing?\x02 It had a virus.\x02",
+		"A programmer's wife tells him: Go to the store and pick up a loaf of bread. If they have eggs, get a dozen.\x02 The programmer returns home with 12 loaves of bread.\x02",
+		"Why don't programmers like nature?\x02 It has too many bugs.\x02",
+		"What do you call a programmer from Finland?\x02 Nerdic.\x02",
+		"Why was the function sad?\x02 Because it didn't get a callback.\x02",
+		"How many programmers does it take to change a lightbulb?\x02 Only one. But then the whole house falls down.\x02",
+		"What did the Java code say to the C code?\x02 You've got no class.\x02",
+		"Why did the programmer get stuck in the shower?\x02 The shampoo bottle said: Lather, Rinse, Repeat.\x02",
+		"What's a programmer's favorite snack?\x02 Microchips.\x02",
+		"Why do programmers hate the outdoors?\x02 The sunlight causes too much glare on their screens.\x02",
+		"What's the best thing about a Boolean?\x02 Even if you're wrong, you're only off by a bit.\x02",
+		"To understand recursion,\x02 you must first understand recursion.\x02",
+		"Why do programmers prefer iOS development?\x02 Because they don't like Java.\x02",
+		"What did the router say to the doctor?\x02 It hurts when IP.\x02",
+		"Why did the developer stay calm?\x02 Because he had exception handling.\x02",
+		"What's a programmer's least favorite day?\x02 Array of Sundays.\x02"
+	};
+	static const size_t jokeCount = sizeof(hardcodedJokes) / sizeof(hardcodedJokes[0]);
+	
+	static bool seeded = false;
+	if (!seeded) {
+		std::srand(std::time(NULL));
+		seeded = true;
 	}
 
-	//Read file
-	std::ifstream file("/tmp/ircbot_joke.json");
-	if (!file.is_open()) {
-		return "Error: Could not read joke from file";
-	}
-
-	std::string content;
-	std::string line;
-	while (std::getline(file, line)) {
-		content += line;
-	}
-	file.close();
-
-	// Parse JSON response: {"type":"...","setup":"...","punchline":"...","id":...}
-	size_t setupPos = content.find("\"setup\":\"");
-	size_t punchPos = content.find("\"punchline\":\"");
-
-	if (setupPos != std::string::npos && punchPos != std::string::npos) {
-		// Extract setup
-		size_t setupStart = setupPos + 9; //length of "setup":"
-		size_t setupEnd = content.find("\"", setupStart);
-		std::string setup = content.substr(setupStart, setupEnd - setupStart);
-
-		// Extract punchline
-		size_t punchStart = punchPos + 13; //length of "punchline":"
-		size_t punchEnd = content.find("\"", punchStart);
-		std::string punchline = content.substr(punchStart, punchEnd - punchStart);
-
-		return setup + " ... " + punchline;
-	}
-
-	return "Error: Failed to parse joke";
+	size_t randomIndex = std::rand() % jokeCount;
+	return hardcodedJokes[randomIndex];
 }
+
+// std::string Bot::_getJoke() {
+// 	// Using system curl instead of <curl/curl.h>
+// 	int result = system("curl -s https://official-joke-api.appspot.com/random_joke > /tmp/ircbot_joke.json 2>/dev/null");
+// 	if (result != 0) {
+// 		return "Error: Could not fetch joke";
+// 	}
+
+// 	//Read file
+// 	std::ifstream file("/tmp/ircbot_joke.json");
+// 	if (!file.is_open()) {
+// 		return "Error: Could not read joke from file";
+// 	}
+
+// 	std::string content;
+// 	std::string line;
+// 	while (std::getline(file, line)) {
+// 		content += line;
+// 	}
+// 	file.close();
+
+// 	// Parse JSON response: {"type":"...","setup":"...","punchline":"...","id":...}
+// 	size_t setupPos = content.find("\"setup\":\"");
+// 	size_t punchPos = content.find("\"punchline\":\"");
+
+// 	if (setupPos != std::string::npos && punchPos != std::string::npos) {
+// 		// Extract setup
+// 		size_t setupStart = setupPos + 9; //length of "setup":"
+// 		size_t setupEnd = content.find("\"", setupStart);
+// 		std::string setup = content.substr(setupStart, setupEnd - setupStart);
+
+// 		// Extract punchline
+// 		size_t punchStart = punchPos + 13; //length of "punchline":"
+// 		size_t punchEnd = content.find("\"", punchStart);
+// 		std::string punchline = content.substr(punchStart, punchEnd - punchStart);
+
+// 		return setup + " ... " + punchline;
+// 	}
+
+// 	return "Error: Failed to parse joke";
+// }
 
 bool Bot::connect() { return _connectSocket(); }
 

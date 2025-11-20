@@ -9,9 +9,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <fstream>
 #include <cstdlib>
+#include <ctime>
 
 class Bot {
 private:
@@ -22,7 +24,6 @@ private:
 	std::string _password;
 	std::string _buffer;
 
-	//Helper functions
 	bool _connectSocket();
 	void _sendMessage(const std::string& message);
 	std::string _readMessage();
