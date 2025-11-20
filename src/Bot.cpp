@@ -11,32 +11,32 @@ Bot::~Bot() {
 }
 
 bool Bot::_connectSocket() {
-    struct sockaddr_in serv_addr;
+	struct sockaddr_in serv_addr;
 
-    _sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (_sockfd < 0) {
-        std::cerr << "Error: cannot create socket" << std::endl;
-        return false;
-    }
+	_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (_sockfd < 0) {
+		std::cerr << "Error: cannot create socket" << std::endl;
+		return false;
+	}
 
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(_port);
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(_port);
 
-    struct hostent* host = gethostbyname(_server.c_str());
-    if (!host) {
-        std::cerr << "Error: unknown host" << std::endl;
-        return false;
-    }
-    memcpy(&serv_addr.sin_addr, host->h_addr, host->h_length);
+	struct hostent* host = gethostbyname(_server.c_str());
+	if (!host) {
+		std::cerr << "Error: unknown host" << std::endl;
+		return false;
+	}
+	memcpy(&serv_addr.sin_addr, host->h_addr, host->h_length);
 
-    if (::connect(_sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "Error: connection failed" << std::endl;
-        return false;
-    }
+	if (::connect(_sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+		std::cerr << "Error: connection failed" << std::endl;
+		return false;
+	}
 
-    std::cout << "Connected to " << _server << ":" << _port << std::endl;
-    return true;
+	std::cout << "Connected to " << _server << ":" << _port << std::endl;
+	return true;
 }
 
 void Bot::_sendMessage(const std::string& message) {
@@ -104,7 +104,6 @@ void Bot::_handlePing(const std::string& message) {
 }
 
 void Bot::_handlePrivmsg(const std::string& message) {
-	//Example: :sender!user@host PRIVMSG channel :message text
 	std::cout << 1;
 	size_t senderEnd = message.find('!');
 	if (senderEnd == std::string::npos || senderEnd == 0)
@@ -159,9 +158,7 @@ void Bot::_parseAndRespond(const std::string& channel,
 
 	std::string cmd = text.substr(1);
 
-	// Determine where to send the response
-	// If it's a direct message (channel is bot's nick), respond to the sender
-	// Otherwise, respond to the channel
+	// If it's a direct message (channel is bot's nick), respond to the sender, otherwise, respond to the channel
 	std::string target = (channel == _nick) ? sender : channel;
 
 	std::cout << "CMD being received: " << cmd << std::endl;
@@ -271,13 +268,13 @@ std::string Bot::_getJoke() {
 bool Bot::connect() { return _connectSocket(); }
 
 void Bot::authenticate() {
-	//Send password if required
+	// Send password if required
 	if (!_password.empty()) {
 		std::string passMsg = "PASS " + _password + "\r\n";
 		_sendMessage(passMsg);
 	}
 
-	//Send NICK and USER commands
+	// Send NICK and USER commands
 	std::string nickMsg = "NICK " + _nick + "\r\n";
 	_sendMessage(nickMsg);
 
@@ -299,7 +296,7 @@ void Bot::messageLoop() {
 		std::string message = _readMessage();
 
 		if (message.empty()) {
-			//Check if connection is still alive
+			// Check if connection is still alive
 			char buffer[1];
 			int n = recv(_sockfd, buffer, 1, MSG_PEEK | MSG_DONTWAIT);
 			if (n == 0) {

@@ -7,7 +7,7 @@ FileTransfer::FileTransfer(const std::string& filename,
 		_filesize(0), _bytes_sent(0), _sender_nick(sender),
 		_receiver_nick(receiver), _active(false) {
 
-	//Open file and get size
+	// Open file and get size
 	_file.open(filename.c_str(), std::ios::binary | std::ios::ate);
 	if (_file.is_open()) {
 		_filesize = static_cast<unsigned long>(_file.tellg());
@@ -26,7 +26,7 @@ unsigned long FileTransfer::_ipToLong(const std::string& ip) {
 }
 
 std::string FileTransfer::_getLocalIP() {
-	//Simplified - returns localhost; in production, get actual network interface IP
+	// Simplified - returns localhost; in production, get actual network interface IP
 	return "127.0.0.1";
 }
 
@@ -81,7 +81,7 @@ bool FileTransfer::setupListenSocket(int& port) {
 	std::memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = 0; //Let system assign port
+	addr.sin_port = 0; // Let system assign port
 
 	if (bind(_listen_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
 		close(_listen_fd);
@@ -95,7 +95,7 @@ bool FileTransfer::setupListenSocket(int& port) {
 		return false;
 	}
 
-	//Get assigned port
+	// Get assigned port
 	socklen_t len = sizeof(addr);
 	if (getsockname(_listen_fd, (struct sockaddr*)&addr, &len) < 0) {
 		close(_listen_fd);
@@ -104,7 +104,7 @@ bool FileTransfer::setupListenSocket(int& port) {
 	}
 	port = ntohs(addr.sin_port);
 
-	//Set non-blocking
+	// Set non-blocking
 	int flags = fcntl(_listen_fd, F_GETFL, 0);
 	if (flags < 0) {
 		close(_listen_fd);
@@ -166,7 +166,7 @@ bool FileTransfer::sendFileData() {
 	char buffer[4096];
 	_file.read(buffer, sizeof(buffer));
 
-	//Using gcount() with explicit cast to get bytes read (C++98 compliant)
+	// Using gcount() with explicit cast to get bytes read (C++98 compliant)
 	std::streamsize bytes_read_stream = _file.gcount();
 	size_t bytes_read = static_cast<size_t>(bytes_read_stream);
 
@@ -178,7 +178,7 @@ bool FileTransfer::sendFileData() {
 			// Display progress bar
 			displayTransferProgress();
 
-			//Wait for acknoledgment (required by DCC protocol)
+			// Wait for acknoledgment (required by DCC protocol)
 			unsigned long ack = 0;
 			ssize_t recv_result = recv(_transfer_fd, &ack, sizeof(ack), 0);
 			if (recv_result <= 0) {
@@ -188,7 +188,7 @@ bool FileTransfer::sendFileData() {
 		}
 		return false;
 	}
-	//No more data read
+	// No more data read
 	if (_file.eof()) {
 		displayTransferProgress();
 		std::cout << std::endl;
