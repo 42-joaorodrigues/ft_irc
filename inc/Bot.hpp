@@ -23,6 +23,7 @@ private:
 	std::string _nick;
 	std::string _password;
 	std::string _buffer;
+	std::time_t _startTime;
 
 	bool _connectSocket();
 	void _sendMessage(const std::string& message);
@@ -33,6 +34,7 @@ private:
 						const std::string& sender,
 						const std::string& text);
 	std::vector<std::string> _split(const std::string& str, char delimiter);
+	std::string _getStatus();
 	std::string _getJoke();
 
 public:

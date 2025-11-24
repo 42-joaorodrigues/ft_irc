@@ -3,7 +3,9 @@
 Bot::Bot(const std::string& server, int port,
 				const std::string& nick, const std::string& password)
 	:  _sockfd(-1), _server(server), _port(port),
-		_nick(nick), _password(password) {}
+		_nick(nick), _password(password) {
+			_startTime = std::time(NULL);
+		}
 
 Bot::~Bot() {
 	if (_sockfd != -1)
@@ -167,50 +169,81 @@ void Bot::_parseAndRespond(const std::string& channel,
 		std::string response = "PRIVMSG " + target + " :Hello " + sender + "!\r\n";
 		_sendMessage(response);
 	} else if (cmd == "help") {
-		std::string response = "PRIVMSG " + target + " :Available commands: \x02!hello, !help, !uptime, !joke\x02\r\n";
-		_sendMessage(response);
-	} else if (cmd == "uptime") {
-		std::string response = "PRIVMSG " + target + " :Bot is running!\r\n";
+		std::string response = "PRIVMSG " + target + " :Available commands: \x02!hello, !help, !joke, !status, !time\x02\r\n";
 		_sendMessage(response);
 	} else if (cmd == "joke") {
 		std::string joke = _getJoke();
 		std::string response = "PRIVMSG " + target + " :" + joke + "\r\n";
 		_sendMessage(response);
+	} else if (cmd == "time") {
+		std::time_t now = std::time(NULL);
+		char buffer[64];
+		std::tm* tm_info = std::localtime(&now);
+		std::strftime(buffer, sizeof(buffer), "\x02%A, %B %d %Y\x02 - \x02%H:%M:%S\x02", tm_info);
+		std::string timeStr(buffer);
+		std::string response = "PRIVMSG " + target + " :Current day and time: " + timeStr + "\r\n";
+		_sendMessage(response);
+	} else if (cmd == "status") {
+		std::string uptimeStr = _getStatus();
+		std::string response = "PRIVMSG " + target + " :Bot is\x02 ACTIVE\x02 and has been running for " + uptimeStr + "\r\n";
+		_sendMessage(response);
 	}
+}
+
+std::string Bot::_getStatus() {
+	std::time_t now = std::time(NULL);
+	int sec = static_cast<int>(difftime(now, _startTime));
+	
+	int day = sec / 86400;
+	sec %= 86400;
+	int hr = sec / 3600;
+	sec %= 3600;
+	int min = sec / 60;
+	sec %= 60;
+
+	std::stringstream ss;
+	if (day > 0)
+		ss << day << "d ";
+	if (hr > 0)
+		ss << hr << "h ";
+	if (min > 0)
+		ss << min << "m ";
+	ss << sec << "s ";
+	return ss.str();
 }
 
 std::string Bot::_getJoke() {
 	static const std::string hardcodedJokes[] = {
-		"Why do programmers prefer dark mode?\x02 Because light attracts bugs.\x02",
-		"Why did the programmer quit his job?\x02 Because he didn't get arrays.\x02",
-		"How many programmers does it take to change a light bulb?\x02 None, that's a hardware problem.\x02",
-		"Why do Java developers wear glasses?\x02 Because they don't C#.\x02",
-		"What's a programmer's favorite hangout place?\x02 Foo Bar.\x02",
-		"Why did the developer go broke?\x02 Because he used up all his cache.\x02",
-		"What do you call 8 hobbits?\x02 A hobbyte.\x02",
+		"Why do programmers prefer dark mode?...\x02 Because light attracts bugs.\x02",
+		"Why did the programmer quit his job?...\x02 Because he didn't get arrays.\x02",
+		"How many programmers does it take to change a light bulb?...\x02 None, that's a hardware problem.\x02",
+		"Why do Java developers wear glasses?...\x02 Because they don't C#.\x02",
+		"What's a programmer's favorite hangout place?...\x02 Foo Bar.\x02",
+		"Why did the developer go broke?...\x02 Because he used up all his cache.\x02",
+		"What do you call 8 hobbits?...\x02 A hobbyte.\x02",
 		"There are 10 types of people in the world:\x02 those who understand binary and those who don't.\x02",
 		"A SQL query walks into a bar, walks up to two tables and asks:\x02 Can I join you?\x02",
-		"Why was the JavaScript developer sad?\x02 Because he didn't know how to 'null' his feelings.\x02",
+		"Why was the JavaScript developer sad?...\x02 Because he didn't know how to 'null' his feelings.\x02",
 		"I have a joke about UDP,\x02 but you might not get it.\x02",
-		"How do you comfort a JavaScript bug?\x02 You console it.\x02",
-		"Why do programmers always mix up Halloween and Christmas?\x02 Because Oct 31 == Dec 25.\x02",
-		"What's the object-oriented way to become wealthy?\x02 Inheritance.\x02",
-		"Why did the computer keep sneezing?\x02 It had a virus.\x02",
+		"How do you comfort a JavaScript bug?...\x02 You console it.\x02",
+		"Why do programmers always mix up Halloween and Christmas?...\x02 Because Oct 31 == Dec 25.\x02",
+		"What's the object-oriented way to become wealthy?...\x02 Inheritance.\x02",
+		"Why did the computer keep sneezing?...\x02 It had a virus.\x02",
 		"A programmer's wife tells him: Go to the store and pick up a loaf of bread. If they have eggs, get a dozen.\x02 The programmer returns home with 12 loaves of bread.\x02",
-		"Why don't programmers like nature?\x02 It has too many bugs.\x02",
-		"What do you call a programmer from Finland?\x02 Nerdic.\x02",
-		"Why was the function sad?\x02 Because it didn't get a callback.\x02",
-		"How many programmers does it take to change a lightbulb?\x02 Only one. But then the whole house falls down.\x02",
-		"What did the Java code say to the C code?\x02 You've got no class.\x02",
-		"Why did the programmer get stuck in the shower?\x02 The shampoo bottle said: Lather, Rinse, Repeat.\x02",
-		"What's a programmer's favorite snack?\x02 Microchips.\x02",
-		"Why do programmers hate the outdoors?\x02 The sunlight causes too much glare on their screens.\x02",
-		"What's the best thing about a Boolean?\x02 Even if you're wrong, you're only off by a bit.\x02",
+		"Why don't programmers like nature?...\x02 It has too many bugs.\x02",
+		"What do you call a programmer from Finland?...\x02 Nerdic.\x02",
+		"Why was the function sad?...\x02 Because it didn't get a callback.\x02",
+		"How many programmers does it take to change a lightbulb?...\x02 Only one. But then the whole house falls down.\x02",
+		"What did the Java code say to the C code?...\x02 You've got no class.\x02",
+		"Why did the programmer get stuck in the shower?...\x02 The shampoo bottle said: Lather, Rinse, Repeat.\x02",
+		"What's a programmer's favorite snack?...\x02 Microchips.\x02",
+		"Why do programmers hate the outdoors?...\x02 The sunlight causes too much glare on their screens.\x02",
+		"What's the best thing about a Boolean?...\x02 Even if you're wrong, you're only off by a bit.\x02",
 		"To understand recursion,\x02 you must first understand recursion.\x02",
-		"Why do programmers prefer iOS development?\x02 Because they don't like Java.\x02",
-		"What did the router say to the doctor?\x02 It hurts when IP.\x02",
-		"Why did the developer stay calm?\x02 Because he had exception handling.\x02",
-		"What's a programmer's least favorite day?\x02 Array of Sundays.\x02"
+		"Why do programmers prefer iOS development?...\x02 Because they don't like Java.\x02",
+		"What did the router say to the doctor?...\x02 It hurts when IP.\x02",
+		"Why did the developer stay calm?...\x02 Because he had exception handling.\x02",
+		"What's a programmer's least favorite day?...\x02 Array of Sundays.\x02"
 	};
 	static const size_t jokeCount = sizeof(hardcodedJokes) / sizeof(hardcodedJokes[0]);
 	
@@ -223,47 +256,6 @@ std::string Bot::_getJoke() {
 	size_t randomIndex = std::rand() % jokeCount;
 	return hardcodedJokes[randomIndex];
 }
-
-// std::string Bot::_getJoke() {
-// 	// Using system curl instead of <curl/curl.h>
-// 	int result = system("curl -s https://official-joke-api.appspot.com/random_joke > /tmp/ircbot_joke.json 2>/dev/null");
-// 	if (result != 0) {
-// 		return "Error: Could not fetch joke";
-// 	}
-
-// 	//Read file
-// 	std::ifstream file("/tmp/ircbot_joke.json");
-// 	if (!file.is_open()) {
-// 		return "Error: Could not read joke from file";
-// 	}
-
-// 	std::string content;
-// 	std::string line;
-// 	while (std::getline(file, line)) {
-// 		content += line;
-// 	}
-// 	file.close();
-
-// 	// Parse JSON response: {"type":"...","setup":"...","punchline":"...","id":...}
-// 	size_t setupPos = content.find("\"setup\":\"");
-// 	size_t punchPos = content.find("\"punchline\":\"");
-
-// 	if (setupPos != std::string::npos && punchPos != std::string::npos) {
-// 		// Extract setup
-// 		size_t setupStart = setupPos + 9; //length of "setup":"
-// 		size_t setupEnd = content.find("\"", setupStart);
-// 		std::string setup = content.substr(setupStart, setupEnd - setupStart);
-
-// 		// Extract punchline
-// 		size_t punchStart = punchPos + 13; //length of "punchline":"
-// 		size_t punchEnd = content.find("\"", punchStart);
-// 		std::string punchline = content.substr(punchStart, punchEnd - punchStart);
-
-// 		return setup + " ... " + punchline;
-// 	}
-
-// 	return "Error: Failed to parse joke";
-// }
 
 bool Bot::connect() { return _connectSocket(); }
 

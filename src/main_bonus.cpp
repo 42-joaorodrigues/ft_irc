@@ -90,7 +90,8 @@ int main(int argc, char **argv) {
 	std::cout << "\n\x02======= escraBOTceta menu =======\x02\n" << std::endl;
 	std::cout << " \x02 !hello \x02 - Greeting message"<< std::endl;
 	std::cout << " \x02 !help \x02  - Show help information"<< std::endl;
-	std::cout << " \x02 !uptime \x02- Show bot uptime"<< std::endl;
+	std::cout << " \x02 !status \x02- Show bot status"<< std::endl;
+	std::cout << " \x02 !time \x02  - Show current day and time"<< std::endl;
 	std::cout << " \x02 !joke \x02  - Tell a random joke"<< std::endl;
 	std::cout << "\nPress \x02 Ctrl+C \x02 to stop the bot"<< std::endl;
 	std::cout << "\x02=================================\x02\n" << std::endl;
