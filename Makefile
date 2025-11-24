@@ -44,20 +44,21 @@ $(O_DIR)/mandatory/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	@$(CC) $(FLAGS) -c $< -o $@ $(INC);
 	@current=$$(cat $(COMPILED_COUNT) 2>/dev/null || echo 0); \
-	bar_size=$(BAR_SIZE) \
-	percent=$$(( ($$current * 100) / $(OBJ_COUNT) )); \
-	filled=$$(( ($$current * bar_size) / $(OBJ_COUNT) )); \
-	printf "%-12.12s %-10.10s " "Compiling" "$(NAME)"; \
-	for j in $$(seq 1 $$filled); do printf "⣿"; done; \
-	for j in $$(seq $$((filled + 1)) $$bar_size 2>/dev/null); do printf "⣀"; done; \
-	printf " $$percent%%\r"; \
+	bar_size=$(BAR_SIZE); \
 	next=$$(( $$current + 1 )); \
-	echo $$next > $(COMPILED_COUNT)
+	echo $$next > $(COMPILED_COUNT); \
+	if [ $$current -eq 0 ]; then \
+		printf "%-12.12s %-10.10s $(GREEN)" "Compiling" $(NAME);  \
+	fi; \
+	prev_filled=$$(( ($$current * $$bar_size) / $(OBJ_COUNT) )); \
+	curr_filled=$$(( ($$next * $$bar_size) / $(OBJ_COUNT) )); \
+	to_print=$$(( $$curr_filled - $$prev_filled )); \
+	for j in $$(seq 1 $$to_print); do printf "⣿"; sleep 0.01; done;
 
 # Compile ircserv
 $(NAME): $(HEADER) $(OBJ)
 	@$(CC) $(FLAGS) $(OBJ) -o $@
-	@make .success ACTION="Compiling" OBJECT="$(NAME)" --no-print-directory
+	@printf " Done$(RESET)\n"
 	@rm -f $(COMPILED_COUNT)
 
 #────────────────────────────────Bonus Compilation────────────────────────────#
@@ -72,39 +73,42 @@ B_OBJ_COUNT	= $(words $(B_OBJ))
 # Compile .c to .o
 $(O_DIR)/bonus/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	@$(CC) $(FLAGS) -c $< -o $@ $(B_INC);
+	@$(CC) $(FLAGS) -c $< -o $@ $(INC);
 	@current=$$(cat $(COMPILED_COUNT) 2>/dev/null || echo 0); \
-	bar_size=$(BAR_SIZE) \
-	percent=$$(( ($$current * 100) / $(B_OBJ_COUNT) )); \
-	filled=$$(( ($$current * bar_size) / $(OBJ_COUNT) )); \
-	printf "%-12.12s %-10.10s " "Compiling" "$(BOT)"; \
-	for j in $$(seq 1 $$filled); do printf "⣿"; done; \
-	for j in $$(seq $$((filled + 1)) $$bar_size 2>/dev/null); do printf "⣀"; done; \
-	printf " $$percent%%\r"; \
+	bar_size=$(BAR_SIZE); \
 	next=$$(( $$current + 1 )); \
-	echo $$next > $(COMPILED_COUNT)
+	echo $$next > $(COMPILED_COUNT); \
+	if [ $$current -eq 0 ]; then \
+		printf "%-12.12s %-10.10s $(GREEN)" "Compiling" $(BOT);  \
+	fi; \
+	prev_filled=$$(( ($$current * $$bar_size) / $(B_OBJ_COUNT) )); \
+	curr_filled=$$(( ($$next * $$bar_size) / $(B_OBJ_COUNT) )); \
+	to_print=$$(( $$curr_filled - $$prev_filled )); \
+	for j in $$(seq 1 $$to_print); do printf "⣿"; sleep 0.01; done;
 
 bonus: $(BOT)
 
 # Compile Bot
 $(BOT): $(HEADER) $(B_OBJ)
 	@$(CC) $(FLAGS) $(B_OBJ) -o $@
-	@make .success ACTION="Compiling" OBJECT="$(BOT)" --no-print-directory
+	@printf " Done$(RESET)\n"
 	@rm -f $(COMPILED_COUNT)
 
 #────────────────────────────────Cleaning Commands────────────────────────────#
 
 clean:
+	@printf "%-12.12s %-10.10s $(GREEN)" "Cleaning" "objects"; \
+	for i in $$(seq 1 $(BAR_SIZE)); do printf "⣿"; sleep 0.01; done;
 	@rm -rf $(O_DIR)
-	@make .success ACTION="Cleaning" OBJECT="objects" --no-print-directory
+	@printf " Done$(RESET)\n"
 
 fclean:
+	@printf "%-12.12s %-10.10s $(GREEN)" "Cleaning" $(NAME); \
+	for i in $$(seq 1 $(BAR_SIZE)); do printf "⣿"; sleep 0.01; done;
 	@rm -rf $(O_DIR)
-	@make .success ACTION="Cleaning" OBJECT="objects" --no-print-directory
 	@rm -rf $(BOT)
-	@make .success ACTION="Cleaning" OBJECT="$(BOT)" --no-print-directory
 	@rm -rf $(NAME)
-	@make .success ACTION="Cleaning" OBJECT="$(NAME)" --no-print-directory
+	@printf " Done$(RESET)\n"
 
 re: fclean all bonus
 
