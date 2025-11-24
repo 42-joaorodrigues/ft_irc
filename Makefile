@@ -63,7 +63,7 @@ $(NAME): $(HEADER) $(OBJ)
 
 #────────────────────────────────Bonus Compilation────────────────────────────#
 
-BOT_SRC		= Bot.cpp main_bonus.cpp
+BOT_SRC		= Bot.cpp bot_main.cpp
 B_SRC		:= $(addprefix src/bot/, $(BOT_SRC))
 B_OBJ		= $(B_SRC:%.cpp=$(O_DIR)/bonus/%.o)
 B_INC			= -I inc/
