@@ -978,14 +978,25 @@ void Server::_handleDccSend(int client_fd, const std::vector<std::string>& param
 }
 
 void Server::_processDccTransfers() {
-	std::map<std::string, FileTransfer*>::iterator it;
-	for (it = _active_transfers.begin(); it != _active_transfers.end(); ++it) {
+	std::map<std::string, FileTransfer*>::iterator it = _active_transfers.begin();
+	while (it != _active_transfers.end()) {
 		FileTransfer* transfer = it->second;
 
+		// Try to accept connection if not yet connected
 		if (!transfer->isActive()) {
+			if (transfer->acceptConnection()) {
+				std::cout << "DCC connection accepted for " << it->first << std::endl;
+			}
+		}
+
+		// If connected, send data
+		if (transfer->isActive()) {
 			if (!transfer->sendFileData()) {
+				// Transfer finished or failed
 				if (transfer->isComplete()) {
 					std::cout << "\n✓ File transfer complete: " << it->first << std::endl;
+				} else {
+					std::cout << "\n✗ File transfer failed: " << it->first << std::endl;
 				}
 				transfer->abort();
 				delete transfer;
@@ -993,17 +1004,8 @@ void Server::_processDccTransfers() {
 				continue;
 			}
 		}
+		
 		++it;
-
-		// Try to accept connection
-		if (transfer->acceptConnection()) {
-			std::cout << "DCC connection accepted for " << it->first << std::endl;
-		}
-
-		//If conncted, send data
-		if (transfer->sendFileData()) {
-			std::cout << "Progress" << transfer->getProgress() << "%" << std::endl;
-		}
 	}
 }
 

@@ -1,4 +1,5 @@
 #include "FileTransfer.hpp"
+#include <cerrno>
 
 FileTransfer::FileTransfer(const std::string& filename,
 							const std::string& sender,
@@ -150,6 +151,12 @@ bool FileTransfer::acceptConnection() {
 		return false;
 	}
 
+	// Set transfer socket to non-blocking
+	int flags = fcntl(_transfer_fd, F_GETFL, 0);
+	if (flags >= 0) {
+		fcntl(_transfer_fd, F_SETFL, flags | O_NONBLOCK);
+	}
+
 	//Close listening socket
 	close(_listen_fd);
 	_listen_fd = -1;
@@ -178,20 +185,27 @@ bool FileTransfer::sendFileData() {
 			// Display progress bar
 			displayTransferProgress();
 
-			// Wait for acknoledgment (required by DCC protocol)
-			unsigned long ack = 0;
-			ssize_t recv_result = recv(_transfer_fd, &ack, sizeof(ack), 0);
-			if (recv_result <= 0) {
-				return false;
-			}
-			return true;
+			return true; // More data to send
 		}
-		return false;
+		return false; // Send failed
 	}
 	// No more data read
 	if (_file.eof()) {
 		displayTransferProgress();
-		std::cout << std::endl;
+		
+		// Properly shutdown the connection to signal end of data
+		if (_transfer_fd >= 0) {
+			shutdown(_transfer_fd, SHUT_WR); // Signal we're done sending
+			close(_transfer_fd);
+			_transfer_fd = -1;
+		}
+		
+		// Close the file
+		if (_file.is_open()) {
+			_file.close();
+		}
+		
+		return false; // Transfer complete
 	}
 	return false;
 }
@@ -208,7 +222,7 @@ void FileTransfer::displayTransferProgress() {
 	_displayProgressBar(percentage, "Sending");
 
 	if (percentage >= 100) {
-		std::cout << std::endl;
+		std::cout << " - Complete!" << std::endl;
 	}
 }
 
@@ -241,9 +255,12 @@ void FileTransfer::abort() {
 		_listen_fd = -1;
 	}
 	if (_transfer_fd >= 0) {
+		shutdown(_transfer_fd, SHUT_WR); // Signal end of data
 		close(_transfer_fd);
 		_transfer_fd = -1;
 	}
-	if (_file.is_open()) { _file.close(); }
+	if (_file.is_open()) { 
+		_file.close(); 
+	}
 	_active = false;
 }
