@@ -49,6 +49,8 @@ public:
 	unsigned long getFilesize() const;
 	unsigned long getProgress() const;
 	unsigned long getBytesSent() const;
+	int getListenFd() const { return _listen_fd; }
+	int getTransferFd() const { return _transfer_fd; }
 
 	//Cleanup
 	void abort();

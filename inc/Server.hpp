@@ -15,11 +15,12 @@
 class Server {
 	int _port;
 	std::string _password;
-	int	_server_fd;
+	int _server_fd;
 	std::vector<struct pollfd> _poll_fds;
 	std::map<int, Client> _clients; // fd -> Client
 	std::map<std::string, Channel*> _channels; // name -> Channel*
 	std::map<std::string, FileTransfer*> _active_transfers;
+	std::map<int, std::string> _output_buffers; // Output buffers per client fd
 
 public:
 	Server(int port, const std::string& password);
@@ -62,6 +63,7 @@ private:
 
 	// Helpers
 	void _sendToClient(int client_fd, const std::string& message);
+	void _flushClientBuffer(int client_fd);
 	void _sendToChannel(Channel* channel, const std::string& message, int exclude_fd);
 	void _removeClient(int client_fd);
 	bool _isNicknameInUse(const std::string& nickname, int exclude_fd) const;
@@ -74,6 +76,8 @@ private:
 	void _handleDccSend(int client_fd, const std::vector<std::string>& params);
 	void _processDccTransfers();
 	void _cleanupCompletedTransfers();
+	void _registerTransferFds();    // New: add transfer FDs to poll
+	void _handleTransferEvents();   // New: handle transfer poll events
 };
 
 #endif // SERVER_HPP

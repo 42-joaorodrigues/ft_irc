@@ -1,4 +1,5 @@
 #include "FileTransfer.hpp"
+#include <cerrno>
 
 FileTransfer::FileTransfer(const std::string& filename,
 							const std::string& sender,
@@ -147,13 +148,27 @@ bool FileTransfer::acceptConnection() {
 
 	_transfer_fd = accept(_listen_fd, (struct sockaddr*)&client_addr, &len);
 	if (_transfer_fd < 0) {
+		// If accept would block, caller should retry after poll indicates readiness
+		if (errno == EAGAIN || errno == EWOULDBLOCK) {
+			return false;
+		}
+		// Real error - cleanup
+		close(_listen_fd);
+		_listen_fd = -1;
 		return false;
 	}
 
-	//Close listening socket
+	// Set transfer socket to non-blocking
+	int flags = fcntl(_transfer_fd, F_GETFL, 0);
+	if (flags >= 0) {
+		fcntl(_transfer_fd, F_SETFL, flags | O_NONBLOCK);
+	}
+
+	// Close listening socket
 	close(_listen_fd);
 	_listen_fd = -1;
 
+	_active = true;
 	std::cout << "DCC connection accepted for " << _filename << std::endl;
 	return true;
 }
@@ -166,7 +181,6 @@ bool FileTransfer::sendFileData() {
 	char buffer[4096];
 	_file.read(buffer, sizeof(buffer));
 
-	// Using gcount() with explicit cast to get bytes read (C++98 compliant)
 	std::streamsize bytes_read_stream = _file.gcount();
 	size_t bytes_read = static_cast<size_t>(bytes_read_stream);
 
@@ -174,26 +188,46 @@ bool FileTransfer::sendFileData() {
 		ssize_t sent = send(_transfer_fd, buffer, bytes_read, 0);
 		if (sent > 0) {
 			_bytes_sent += static_cast<unsigned long>(sent);
-
-			// Display progress bar
 			displayTransferProgress();
-
-			// Wait for acknoledgment (required by DCC protocol)
-			unsigned long ack = 0;
-			ssize_t recv_result = recv(_transfer_fd, &ack, sizeof(ack), 0);
-			if (recv_result <= 0) {
+			
+			// Check if transfer is complete
+			if (_file.eof() && _bytes_sent >= _filesize) {
+				shutdown(_transfer_fd, SHUT_WR);
+				close(_transfer_fd);
+				_transfer_fd = -1;
+				_file.close();
+				_active = false;
 				return false;
 			}
-			return true;
+			return true; // More data to send
+		} else if (sent == -1) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
+				// Would block - seek back and retry later after poll
+				_file.seekg(-static_cast<std::streamoff>(bytes_read), std::ios::cur);
+				return true; // Still active, retry later
+			}
+			// Real send error
+			std::perror("send");
+			abort();
+			return false;
 		}
-		return false;
 	}
-	// No more data read
+
+	// EOF reached
 	if (_file.eof()) {
 		displayTransferProgress();
-		std::cout << std::endl;
+		if (_transfer_fd >= 0) {
+			shutdown(_transfer_fd, SHUT_WR);
+			close(_transfer_fd);
+			_transfer_fd = -1;
+		}
+		if (_file.is_open()) {
+			_file.close();
+		}
+		_active = false;
+		return false;
 	}
-	return false;
+	return true;
 }
 
 void FileTransfer::displayTransferProgress() {
@@ -208,7 +242,7 @@ void FileTransfer::displayTransferProgress() {
 	_displayProgressBar(percentage, "Sending");
 
 	if (percentage >= 100) {
-		std::cout << std::endl;
+		std::cout << " - Complete!" << std::endl;
 	}
 }
 
@@ -241,9 +275,12 @@ void FileTransfer::abort() {
 		_listen_fd = -1;
 	}
 	if (_transfer_fd >= 0) {
+		shutdown(_transfer_fd, SHUT_WR); // Signal end of data
 		close(_transfer_fd);
 		_transfer_fd = -1;
 	}
-	if (_file.is_open()) { _file.close(); }
+	if (_file.is_open()) { 
+		_file.close(); 
+	}
 	_active = false;
 }

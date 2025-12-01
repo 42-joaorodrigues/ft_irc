@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -41,40 +42,90 @@ Server::~Server() {
 void Server::run() {
 	std::cout << "Server running on port " << _port << ". Waiting for connections..." << std::endl;
 
-	while (true) { // Main loop
-		int poll_count = poll(_poll_fds.data(), _poll_fds.size(), -1);
+	while (true) {
+		// Register any DCC transfer FDs before polling
+		_registerTransferFds();
+
+		int poll_count = poll(_poll_fds.data(), _poll_fds.size(), 100); // 100ms timeout for DCC
 		if (poll_count < 0) {
+			if (errno == EINTR) continue;
 			throw std::runtime_error("Poll failed");
 		}
 
-		_processDccTransfers();
-		_cleanupCompletedTransfers();
-
 		for (size_t i = 0; i < _poll_fds.size(); i++) {
-			// Skip if no events on this fddev
 			if (_poll_fds[i].revents == 0) {
 				continue;
 			}
 
 			// Check for errors
 			if (_poll_fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-				if (_poll_fds[i].fd != _server_fd) {
-					std::cout << "Error on fd " << _poll_fds[i].fd << std::endl;
+				if (_poll_fds[i].fd == _server_fd) {
+					continue;
+				}
+				// Check if it's a transfer FD
+				bool is_transfer = false;
+				for (std::map<std::string, FileTransfer*>::iterator it = _active_transfers.begin();
+					 it != _active_transfers.end(); ++it) {
+					if (it->second->getListenFd() == _poll_fds[i].fd ||
+						it->second->getTransferFd() == _poll_fds[i].fd) {
+						is_transfer = true;
+						it->second->abort();
+						break;
+					}
+				}
+				if (!is_transfer) {
 					_removeClient(_poll_fds[i].fd);
 					i--;
 				}
 				continue;
 			}
 
-			// Handle events
+			// Handle POLLIN
 			if (_poll_fds[i].revents & POLLIN) {
 				if (_poll_fds[i].fd == _server_fd) {
 					_acceptNewClient();
 				} else {
-					_handleClientData(_poll_fds[i].fd);
+					// Check if it's a DCC listen FD
+					bool handled = false;
+					for (std::map<std::string, FileTransfer*>::iterator it = _active_transfers.begin();
+						 it != _active_transfers.end(); ++it) {
+						if (it->second->getListenFd() == _poll_fds[i].fd) {
+							it->second->acceptConnection();
+							handled = true;
+							break;
+						}
+					}
+					if (!handled) {
+						_handleClientData(_poll_fds[i].fd);
+					}
+				}
+			}
+
+			// Handle POLLOUT for client output buffers
+			if (_poll_fds[i].revents & POLLOUT) {
+				// Check if it's a client with pending output
+				if (_output_buffers.find(_poll_fds[i].fd) != _output_buffers.end() &&
+					!_output_buffers[_poll_fds[i].fd].empty()) {
+					_flushClientBuffer(_poll_fds[i].fd);
+				}
+				// Check if it's a DCC transfer FD
+				for (std::map<std::string, FileTransfer*>::iterator it = _active_transfers.begin();
+					 it != _active_transfers.end(); ++it) {
+					if (it->second->getTransferFd() == _poll_fds[i].fd) {
+						if (!it->second->sendFileData()) {
+							if (it->second->isComplete()) {
+								std::cout << "\n✓ File transfer complete: " << it->first << std::endl;
+							} else {
+								std::cout << "\n✗ File transfer failed: " << it->first << std::endl;
+							}
+						}
+						break;
+					}
 				}
 			}
 		}
+
+		_cleanupCompletedTransfers();
 	}
 }
 
@@ -849,10 +900,48 @@ void Server::_handleQuit(int client_fd, const std::vector<std::string>& params) 
 // ==================== HELPER FUNCTIONS ====================
 
 void Server::_sendToClient(int client_fd, const std::string& message) {
-	send(client_fd, message.c_str(), message.length(), 0);
+	// Buffer the message instead of sending directly
+	_output_buffers[client_fd] += message;
+
+	// Update poll events to include POLLOUT
+	for (size_t i = 0; i < _poll_fds.size(); i++) {
+		if (_poll_fds[i].fd == client_fd) {
+			_poll_fds[i].events |= POLLOUT;
+			break;
+		}
+	}
+}
+
+void Server::_flushClientBuffer(int client_fd) {
+	std::string& buffer = _output_buffers[client_fd];
+	if (buffer.empty()) {
+		return;
+	}
+
+	ssize_t sent = send(client_fd, buffer.c_str(), buffer.length(), 0);
+	if (sent > 0) {
+		buffer.erase(0, static_cast<size_t>(sent));
+	} else if (sent == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+		// Real error - will be caught by POLLERR/POLLHUP
+		return;
+	}
+
+	// If buffer is empty, remove POLLOUT from events
+	if (buffer.empty()) {
+		for (size_t i = 0; i < _poll_fds.size(); i++) {
+			if (_poll_fds[i].fd == client_fd) {
+				_poll_fds[i].events = POLLIN;
+				break;
+			}
+		}
+	}
 }
 
 void Server::_sendToChannel(Channel* channel, const std::string& message, int exclude_fd) {
+	if (!channel) {
+		return;
+	}
+
 	const std::set<int>& members = channel->getMembers();
 	for (std::set<int>::const_iterator it = members.begin(); it != members.end(); ++it) {
 		if (*it != exclude_fd) {
@@ -885,6 +974,9 @@ void Server::_removeClient(int client_fd) {
 
 	// Remove from clients map
 	_clients.erase(client_fd);
+
+	// Also remove output buffer
+	_output_buffers.erase(client_fd);
 
 	close(client_fd);
 }
@@ -977,45 +1069,82 @@ void Server::_handleDccSend(int client_fd, const std::vector<std::string>& param
 	
 }
 
-void Server::_processDccTransfers() {
-	std::map<std::string, FileTransfer*>::iterator it;
-	for (it = _active_transfers.begin(); it != _active_transfers.end(); ++it) {
+void Server::_registerTransferFds() {
+	for (std::map<std::string, FileTransfer*>::iterator it = _active_transfers.begin();
+		 it != _active_transfers.end(); ++it) {
 		FileTransfer* transfer = it->second;
 
-		if (!transfer->isActive()) {
-			if (!transfer->sendFileData()) {
-				if (transfer->isComplete()) {
-					std::cout << "\n✓ File transfer complete: " << it->first << std::endl;
+		int listen_fd = transfer->getListenFd();
+		int transfer_fd = transfer->getTransferFd();
+
+		// Check if listen_fd needs to be added (for accept)
+		if (listen_fd >= 0) {
+			bool found = false;
+			for (size_t i = 0; i < _poll_fds.size(); i++) {
+				if (_poll_fds[i].fd == listen_fd) {
+					found = true;
+					break;
 				}
-				transfer->abort();
-				delete transfer;
-				_active_transfers.erase(it++);
-				continue;
+			}
+			if (!found) {
+				struct pollfd pfd;
+				pfd.fd = listen_fd;
+				pfd.events = POLLIN;
+				pfd.revents = 0;
+				_poll_fds.push_back(pfd);
 			}
 		}
-		++it;
 
-		// Try to accept connection
-		if (transfer->acceptConnection()) {
-			std::cout << "DCC connection accepted for " << it->first << std::endl;
+		// Check if transfer_fd needs to be added (for send)
+		if (transfer_fd >= 0) {
+			bool found = false;
+			for (size_t i = 0; i < _poll_fds.size(); i++) {
+				if (_poll_fds[i].fd == transfer_fd) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				struct pollfd pfd;
+				pfd.fd = transfer_fd;
+				pfd.events = POLLOUT;
+				pfd.revents = 0;
+				_poll_fds.push_back(pfd);
+			}
+		}
+	}
+
+	// Remove stale transfer FDs from poll
+	for (std::vector<struct pollfd>::iterator it = _poll_fds.begin(); it != _poll_fds.end(); ) {
+		bool is_server = (it->fd == _server_fd);
+		bool is_client = (_clients.find(it->fd) != _clients.end());
+		bool is_transfer = false;
+
+		for (std::map<std::string, FileTransfer*>::iterator tit = _active_transfers.begin();
+			 tit != _active_transfers.end(); ++tit) {
+			if (tit->second->getListenFd() == it->fd ||
+				tit->second->getTransferFd() == it->fd) {
+				is_transfer = true;
+				break;
+			}
 		}
 
-		//If conncted, send data
-		if (transfer->sendFileData()) {
-			std::cout << "Progress" << transfer->getProgress() << "%" << std::endl;
+		if (!is_server && !is_client && !is_transfer) {
+			it = _poll_fds.erase(it);
+		} else {
+			++it;
 		}
 	}
 }
 
+// Remove _processDccTransfers() - no longer needed, handled in main loop
+
 void Server::_cleanupCompletedTransfers() {
 	std::map<std::string, FileTransfer*>::iterator it = _active_transfers.begin();
 	while (it != _active_transfers.end()) {
-		if (it->second->isComplete()) {
-			std::cout << "Transfer completed: " << it->first << std::endl;
+		if (!it->second->isActive() && it->second->getListenFd() < 0 && it->second->getTransferFd() < 0) {
 			delete it->second;
-			std::map<std::string, FileTransfer*>::iterator tmp = it;
-			++it;
-			_active_transfers.erase(tmp);
+			_active_transfers.erase(it++);
 		} else {
 			++it;
 		}
